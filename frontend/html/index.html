@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADAS — Détection Temps Réel</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Lien vers le fichier CSS corrigé -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v=focus2">
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-badge">AD<br>AS</div>
+    <div>
+      <div class="logo-text">AD<span>AS</span></div>
+      <div class="logo-sub">TABLEAU DE BORD CONDUCTEUR · TEMPS RÉEL</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <div class="hpill"><div class="dot"></div><span>MODE CONDUITE</span></div>
+    <span id="clock" style="font-family:var(--mono);font-size:.62rem;color:var(--txt3)"></span>
+  </div>
+</header>
+
+<div class="layout">
+  <div id="col-left">
+    <div class="card">
+      <div class="ch"><span>📁</span><h2>CHARGER VIDÉO</h2></div>
+      <div class="cb" style="display:flex;flex-direction:column;gap:11px">
+        <div class="drop" id="drop">
+          <input type="file" id="finput" accept="video/*,image/*">
+          <div class="drop-ico" id="dico">🎬</div>
+          <div class="drop-lbl">Glissez un fichier ou <strong onclick="document.getElementById('finput').click()">parcourir</strong></div>
+          <div class="drop-fmt">MP4 · AVI · MOV · MKV · JPG · PNG</div>
+        </div>
+        <div class="finfo" id="finfo">
+          <div class="fname" id="fname">—</div>
+          <div class="fmeta" id="fmeta">—</div>
+        </div>
+        
+        <div class="slrow" id="conf-row">
+          <div class="sllbl">Confiance min. <span id="confval">25%</span></div>
+          <input type="range" id="conf" min="5" max="95" value="25" oninput="sl(this,'confval','%')">
+        </div>
+        
+        <div class="slrow" id="skip-row">
+          <div class="sllbl">Analyser 1 frame / <span id="skipval">1</span></div>
+          <input type="range" id="skip" min="1" max="4" value="1" oninput="slSkip(this)">
+          <div class="sl-hint">1 = toutes les frames (précis, lent)</div>
+        </div>
+        
+        <div class="slrow" id="calib-row" style="display:flex; flex-direction:column; gap:7px; padding:9px; border:1px solid var(--bord); border-radius:7px; background:var(--bg2)">
+          <label style="display:flex;align-items:center;justify-content:space-between;font-size:.7rem;color:var(--txt2)">
+            <span>Vitesse calibrée</span>
+            <input type="checkbox" id="spd-enable" checked>
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+            <div>
+              <div class="sllbl" style="font-size:.62rem"><span style="color:var(--txt2)">Focale (px)</span></div>
+              <input id="focal" type="number" min="100" max="3000" step="10" value="900" style="width:100%;background:var(--bg1);border:1px solid var(--bord2);border-radius:5px;color:var(--txt);padding:6px 8px;font-family:var(--mono)">
+            </div>
+            <div>
+              <div class="sllbl" style="font-size:.62rem"><span style="color:var(--txt2)">Largeur (m)</span></div>
+              <input id="signw" type="number" min="0.10" max="2.00" step="0.01" value="0.60" style="width:100%;background:var(--bg1);border:1px solid var(--bord2);border-radius:5px;color:var(--txt);padding:6px 8px;font-family:var(--mono)">
+            </div>
+          </div>
+          <div class="sl-hint">Ajustez la focale pour que la vitesse apparaisse.</div>
+        </div>
+        
+        <button id="abtn" onclick="analyze()" disabled><span>▶</span> Analyser</button>
+        <button id="rbtn" onclick="resetAll()" style="display:none">↺ Nouvelle analyse</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="col-mid">
+    <div class="card">
+      <div class="ch">
+        <span>🎯</span>
+        <h2>VISION ROUTE / HUD</h2>
+        <span id="status-tag" class="tag" style="margin-left:auto;display:none">⏳</span>
+      </div>
+      <div class="vwrap" id="vwrap">
+        <div id="placeholder">
+          <div class="big">🚘</div>
+          <p>Chargez une vue embarquée ou une vidéo de route<br>Le tableau de bord affiche les panneaux en temps réel</p>
+          <small>Vitesse calibrée · STOP · Interdiction · Feux de circulation</small>
+        </div>
+        <div id="loading">
+          <div class="spinner"></div>
+          <div class="load-lbl" id="load-lbl">Envoi du fichier...</div>
+        </div>
+        <video id="main-video" controls playsinline preload="auto"></video>
+        <img id="main-img" alt="">
+        <canvas id="canvas"></canvas>
+        <div class="vbadge" id="vbadge">🔴 LIVE</div>
+      </div>
+      <div id="pbar">
+        <div class="ptrack"><div class="pfill" id="pfill"></div></div>
+        <div class="pinfo"><span id="plbl">Analyse...</span><span id="ppct">0%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="col-right">
+    <div class="card" id="stats-card">
+      <div class="ch"><span>🚗</span><h2>VITESSE</h2></div>
+      <div class="cb" style="display:flex;flex-direction:column;gap:9px">
+        <div class="sgrid">
+          <div class="sbox"><div class="sval" id="sv-spd">—</div><div class="skey">KM/H</div></div>
+        </div>
+        <div class="sl-hint">La vitesse s'affiche seulement quand la cible est stable et calibrée.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch">
+        <span>🔍</span><h2>PANNEAUX DÉTECTÉS</h2>
+        <span id="ndet" style="margin-left:auto;font-family:var(--mono);font-size:.6rem;color:var(--txt3)">0</span>
+      </div>
+      <div id="det-list"><div class="empty">En attente...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Lien vers le fichier JS corrigé -->
+<script defer src="{{ url_for('static', filename='js/dashboard.js') }}?v=focus2"></script>
+</body>
+</html>

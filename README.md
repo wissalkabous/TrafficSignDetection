@@ -10,23 +10,28 @@
 
 ```
 📔 notebooks/ADAS_v6_kaggle.ipynb
-      ↓ (Kaggle Notebook + GPU T4 x2 + Internet)
-      ├─ Télécharge datasets (LISA, GTSDB, DS1-3)
-      ├─ Crée data/processed/dataset/
-      ├─ Lance training 120 epochs
-      └─ Génère models/best.pt
+      ↓ Étudiant 1 (cells 1-9) — Dataset & Preprocessing
+      ├─ Télécharge datasets (LISA, GTSDB, DS1/DS2/DS3)
+      ├─ Convertit annotations → format YOLO
+      ├─ Crée data/processed/dataset/ (7381 train + 1000 val)
+      └─ Génère data.yaml (15 classes)
+
+      ↓ Étudiant 2 (cells 10-13) — Training & Évaluation
+      ├─ Entraîne YOLOv8s sur GPU T4 x2 (Kaggle)
+      ├─ Monitore mAP50, précision, rappel
+      └─ Génère models/best.pt (mAP50 ~ 0.867)
 ```
 
-**Important:** Les données `data/raw/` et `data/processed/` ne sont **PAS committées** au Git.  
-Seul le notebook est la source.
+> **Note:** `data/raw/` et `data/processed/` ne sont **pas committés** sur Git — trop lourds.  
+> Seul le notebook est la source. `best.pt` se partage via Kaggle Output.
 
 ---
 
 ```
-Collecte Dataset       Training YOLO v8s          Déploiement Web
-(LISA, GTSDB, DS1-3)  (120 epochs, mAP50>0.75)   (Flask + SSE + Dashboard)
-      ↓                        ↓                           ↓
-  Étudiant 1        →     Étudiant 2         →     Étudiant 3
+Collecte & Preprocessing     Training YOLO v8s           Déploiement Web
+(LISA, GTSDB, DS1/2/3)      (30 epochs, mAP50~0.867)    (Flask + SSE + Dashboard)
+        ↓                            ↓                            ↓
+   Étudiant 1          →       Étudiant 2          →       Étudiant 3
 ```
 
 ---
@@ -34,25 +39,25 @@ Collecte Dataset       Training YOLO v8s          Déploiement Web
 ## 🎯 Fonctionnalités Principales
 
 ### ✅ Détection Temps Réel
-- **15 classes** panneaux français + feux tricolores
-- Modèle **YOLOv8s** optimisé (mAP50 > 0.75)
+- **15 classes** panneaux routiers + feux tricolores
+- Modèle **YOLOv8s** optimisé (mAP50 ~ 0.867)
 - **SSE streaming** vidéo frame-par-frame
 
 ### 🚗 Tableau de Bord HUD
 - Interface type **dashcam automobile**
-- Affichage vitesse calibrée (estimée)
-- Alertes dynamiques (danger/warning/ok)
+- Affichage vitesse calibrée (estimation géométrique)
+- Alertes dynamiques (danger / warning / ok)
 - Légende 15 classes interactive
 
 ### 📍 Calibration Vitesse
-- **CalibratedSpeedEstimator** (estimation robuste)
-- Focale caméra + largeur panneau = vitesse km/h
+- **Modèle pinhole** + **filtre de Kalman** (modules/speed.py)
+- Focale caméra + largeur panneau → vitesse km/h
 - Filtrage outliers + lissage EMA
-- Retour `None` si calibration insuffisante
+- Retourne `None` si calibration insuffisante
 
 ### ⚠️ Système Alertes ADAS
-- **Critère:** Feu rouge, STOP, Entrée interdite
-- **Warning:** Dépassement interdit, excès vitesse
+- **Danger:** Feu rouge, STOP, Entrée interdite
+- **Warning:** Dépassement interdit, excès de vitesse
 - **Safe:** Feu vert, vitesse correcte
 - **Info:** Vitesse non calibrée
 
@@ -61,135 +66,135 @@ Collecte Dataset       Training YOLO v8s          Déploiement Web
 ## 📊 Architecture
 
 ```
-Frontend (HTML/CSS/JS)
+Frontend (frontend/html + css + js)
     ↓↑ SSE streaming
-    
-Backend (Flask API)
-    ├─ POST /upload     (traite fichier)
-    ├─ GET /stream     (SSE frame-by-frame)
-    └─ GET /          (dashboard HUD)
+
+Backend (Flask — app.py)
+    ├─ POST /upload      (traite fichier vidéo/image)
+    ├─ GET  /stream      (SSE frame-by-frame)
+    └─ GET  /            (dashboard HUD)
     ↓
-Modules Détection
-    ├─ SignDetector     (YOLO v8s + best.pt)
-    ├─ CalibratedSpeedEstimator (calcul vitesse)
-    └─ AlertEngine      (logique alertes)
+Modules
+    ├─ modules/detection.py     (YOLO v8s + best.pt — inférence)
+    ├─ modules/speed.py         (estimation vitesse + Kalman)
+    ├─ modules/alerts.py        (système expert — logique alertes)
+    └─ modules/constants.py     (classes, seuils, dimensions panneaux)
 ```
 
 ---
 
 ## 🚀 Démarrage Rapide
 
-### **1. Installation**
+### **1. Cloner le repo**
 ```bash
-git clone <repo_url>
-cd adas_v3
+git clone https://github.com/wissalkabous/TrafficSignDetection.git
+cd TrafficSignDetection
+```
+
+### **2. Créer l'environnement virtuel**
+```bash
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# Mac/Linux
+source .venv/bin/activate
+```
+
+### **3. Installer les dépendances**
+```bash
 pip install -r requirements.txt
 ```
 
-### **2. Copier Modèle**
+### **4. Placer le modèle**
 ```bash
-# Mettre best.pt dans:
-cp /chemin/to/best.pt models/
+# Télécharger best.pt depuis Kaggle Output (fourni par Étudiant 2)
+cp /chemin/best.pt models/
 ```
 
-### **3. Lancer API**
+### **5. Lancer l'application**
 ```bash
 python run.py
 # → http://localhost:5000
 ```
 
-### **4. Upload Vidéo/Image**
-- Glisser fichier sur la zone drop
-- Cliquer "Analyser"
-- Observer détections + alerte en live
+### **6. Utiliser le dashboard**
+- Glisser une vidéo ou image sur la zone de dépôt
+- Cliquer **"Analyser"**
+- Observer les détections + vitesse + alertes en live
 
 ---
 
-## 📁 Structure Projet
+## 📁 Structure du Projet
 
 ```
-adas_v3/
-├── 📄 README.md                    ← Vous êtes ici
-├── 📄 COORDINATION.md              (coordination équipe)
-├── 📄 PROJECT_STRUCTURE.md         (détail arborescence)
-├── 📄 CONTRIBUTING.md              (règles Git)
+TrafficSignDetection/
 │
-├── 📁 docs/
-│   ├── ETUDIANT_1_README.md        ← Dataset & Prep
-│   ├── ETUDIANT_2_README.md        ← Model Training
-│   └── ETUDIANT_3_README.md        ← Backend & Deploy
-│
-├── 📁 data/
-│   ├── raw/                        (données brutes)
-│   ├── processed/dataset/          (YOLO-ready) ★
-│   └── statistics/                 (rapports audit)
+├── 📄 README.md                  ← Vous êtes ici (Étudiant 1)
+├── 📄 COORDINATION.md            (Étudiant 2 — coordination équipe)
+├── 📄 requirements.txt           (Étudiant 1 — dépendances ML)
+├── 📄 .gitignore                 (Étudiant 2)
 │
 ├── 📁 notebooks/
-│   └── ADAS_v6_kaggle.ipynb       (dataset + training complet)
+│   └── ADAS_v6_kaggle.ipynb     (Étudiant 1 cells 1-9 + Étudiant 2 cells 10-13)
 │
 ├── 📁 models/
-│   ├── best.pt                    (modèle optimisé) ★
-│   └── training_logs/             (logs training)
+│   └── best.pt                  ★ Modèle final — généré par Étudiant 2 (non versionné)
 │
 ├── 📁 modules/
-│   └── detector.py                (détection + vitesse + alerte)
+│   ├── detection.py             (Étudiant 1 — inférence YOLO)
+│   ├── speed.py                 (Étudiant 2 — estimation vitesse + Kalman)
+│   ├── alerts.py                (Étudiant 3 — système expert alertes)
+│   └── constants.py             (Étudiant 2 — classes, seuils, dimensions)
 │
-├── 📁 templates/
-│   └── index.html                 (dashboard HUD)
+├── 📁 frontend/
+│   ├── html/                    (Étudiant 3 — pages dashboard)
+│   ├── css/                     (Étudiant 3 — styles HUD)
+│   ├── js/                      (Étudiant 3 — canvas + graphe live)
+│   └── uploads/                 (fichiers uploadés — non versionnés)
 │
-├── 📁 tests/
-│   ├── test_detector.py
-│   ├── test_speed_estimator.py
-│   └── test_api.py
-│
-├── 🐍 app.py                       (API Flask)
-├── 🐍 run.py                       (launcher)
-└── 📄 requirements.txt
+├── 🐍 app.py                     (Étudiant 3 — API Flask + SSE)
+└── 🐍 run.py                     (Étudiant 3 — launcher)
 ```
 
-**Voir [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) pour détail complet.**
+> **Fichiers exclus du repo:** `.venv/`, `__pycache__/`, `data/processed/`, `models/best.pt`, `frontend/uploads/`
 
 ---
 
 ## 👥 Équipe & Responsabilités
 
-### **Étudiant 1 — Dataset & Preprocessing**
-**Tâches:** Collecte (LISA, GTSDB, DS1-3), normalisation, audit
+### **Étudiant 1 — Ingénieur Deep Learning**
+**Fichiers:** `notebooks/` (cells 1-9) · `modules/detection.py` · `requirements.txt` · `README.md`
 
-- ✅ T1.1 Collecte & intégration données
-- ✅ T1.2 Nettoyage annotations YOLO
-- ✅ T1.3 Augmentation & balance dataset
-- ✅ T1.4 Audit qualité
-
-📍 **Voir [ETUDIANT_1_README.md](docs/ETUDIANT_1_README.md)**
-
----
-
-### **Étudiant 2 — Model Training & Optimization**
-**Tâches:** Config YOLO, 120 epochs, best.pt
-
-- ✅ T2.1 Pipeline training (config + hyperparams)
-- ✅ T2.2 Entraînement & monitoring
-- ✅ T2.3 Évaluation & sélection best.pt
-- ✅ T2.4 Tuning optimisation
-
-📍 **Voir [ETUDIANT_2_README.md](docs/ETUDIANT_2_README.md)**
+- ✅ Collecte 5 datasets (LISA, GTSDB, DS1/DS2/DS3)
+- ✅ Conversion annotations → format YOLO (15 classes)
+- ✅ Création dataset fusionné (7 381 train + 1 000 val + 400 backgrounds)
+- ✅ Audit qualité (classes équilibrées, aucune erreur)
+- ✅ Implémentation pipeline d'inférence (`detection.py`)
 
 ---
 
-### **Étudiant 3 — Backend Web & Real-time Detection**
-**Tâches:** API Flask, calibration vitesse, dashboard HUD
+### **Étudiant 2 — Ingénieur Vision & Estimation**
+**Fichiers:** `notebooks/` (cells 10-13) · `modules/speed.py` · `modules/constants.py` · `COORDINATION.md` · `.gitignore`
 
-- ✅ T3.1 API Flask & SSE streaming
-- ✅ T3.2 Calibration vitesse & AlertEngine
-- ✅ T3.3 Dashboard UI (tableau de bord HUD)
-- ✅ T3.4 Tests intégration & déploiement
-
-📍 **Voir [ETUDIANT_3_README.md](docs/ETUDIANT_3_README.md)**
+- ✅ Entraînement YOLOv8s — 30 epochs sur GPU T4 x2 (Kaggle)
+- ✅ Monitoring mAP50, précision, rappel par epoch
+- ✅ Sélection best.pt (mAP50 ~ 0.867)
+- ✅ Génération rapports (matrice de confusion, courbes F1/P/R)
+- ✅ Implémentation estimation vitesse (modèle pinhole + filtre de Kalman)
+- ✅ Définition des constantes partagées (`constants.py`)
 
 ---
 
-**Coordination complète:** [COORDINATION.md](COORDINATION.md)
+### **Étudiant 3 — Data Architect & Système Expert**
+**Fichiers:** `modules/alerts.py` · `app.py` · `run.py` · `frontend/`
+
+- ✅ API Flask avec SSE streaming (4 routes)
+- ✅ Pipeline fusion : vidéo → détection → vitesse → alertes → dashboard
+- ✅ Système expert AlertEngine (danger / warning / safe / info)
+- ✅ Dashboard HUD (canvas overlay, graphe vitesse live, liste détections)
+- ✅ Gestion uploads et cleanup automatique (fichiers > 1h supprimés)
 
 ---
 
@@ -197,95 +202,21 @@ adas_v3/
 
 | Métrique | Valeur |
 |---|---|
-| **Modèle** | YOLOv8s (45 MB) |
-| **mAP50** | > 0.75 ✅ |
-| **FPS Détection** | ~30 FPS (GPU T4) |
+| **Modèle** | YOLOv8s (~23 MB) |
+| **mAP50** | ~0.867 ✅ |
+| **mAP50-95** | ~0.567 ✅ |
+| **Précision** | ~0.88 |
+| **Rappel** | ~0.85 |
+| **FPS Détection** | ~28.5 FPS (GPU T4) |
 | **Latence SSE** | < 100ms |
-| **Classes** | 15 (panneaux français) |
-| **Dataset** | 7381 train + 1000 val |
+| **Classes** | 15 (panneaux routiers français) |
+| **Dataset Train** | 7 381 images · 20 271 bboxes |
+| **Dataset Val** | 1 000 images · 2 500 bboxes |
 
 ---
 
-## 🛠️ Technologies
+## 🏷️ Classes Détectées
 
-```
-Backend:
-  - Flask 2.3+        (API REST)
-  - Ultralytics YOLO  (détection)
-  - OpenCV 4.8+       (vidéo/image)
-  - NumPy + Pandas    (data processing)
-
-Frontend:
-  - HTML5 + CSS3      (responsive HUD)
-  - JavaScript ES6+   (SSE client)
-  - Chart.js          (graphiques vitesse)
-
-Infrastructure:
-  - Python 3.9+
-  - GPU: CUDA/PyTorch
-  - Docker (optional)
-```
-
----
-
-## 🧪 Tests
-
-```bash
-# Lancer suite complète
-pytest tests/ -v
-
-# Test détecteur
-pytest tests/test_detector.py
-
-# Test vitesse calibrée
-pytest tests/test_speed_estimator.py
-
-# Test alertes
-pytest tests/test_alert_engine.py
-
-# Test API
-pytest tests/test_api.py
-```
-
----
-
-## 🤝 Collaboration & Git
-
-**Règles strictes:**
-1. Branch par étudiant: `etudiant_X_task`
-2. PR format: `[T1.1] Description`
-3. Code review obligatoire (≥1 peer)
-4. Commit message: `feat/fix/docs(scope): subject`
-
-**Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour détails complets.**
-
----
-
-## 📝 Dépendances
-
-```bash
-# Installer
-pip install -r requirements.txt
-
-# Ou manuellement:
-pip install ultralytics flask opencv-python torch torchvision
-pip install roboflow pyyaml pandas matplotlib tensorboard pytest
-```
-
-**Voir [requirements.txt](requirements.txt)**
-
----
-
-## ⚙️ Configuration
-
-### **app.py — Modèle Priorité**
-```python
-MODEL_USER = "models/best_adas_v5.pt"      # v5 (si existe)
-MODEL_REAL = "models/best_real.pt"         # v6 alternative
-MODEL_FALL = "models/best.pt"              # ✅ Défaut v6
-```
-
-### **modules/detector.py — Classes**
 ```python
 CLASS_NAMES = [
     'vitesse_20', 'vitesse_30', 'vitesse_50', 'vitesse_60',
@@ -295,144 +226,87 @@ CLASS_NAMES = [
 ]
 ```
 
-### **templates/index.html — Calibration Vitesse**
-```javascript
-// UI Controls:
-#spd-enable       (toggle activation)
-#focal           (focale caméra px — défaut 900)
-#signw           (largeur panneau m — défaut 0.60)
-```
-
 ---
 
-## 📺 Utilisation Dashboard
-
-### **Interface**
-```
-┌─────────────────────────────────────────────────────────┐
-│  ADAS v6                                    [🟢 ACTIF]  │
-├─────────────────────────────────────────────────────────┤
-│
-│ [📁 UPLOAD]    │  [🎯 VIDEO + CANVAS + ALERT]  │ [📊 ACTIVE]
-│                │                                │ [DETS]
-│ Conf: ▓▓▓░░   │                                │
-│ Skip: ▓░░░░   │   [HUD Panel]                  │ # Obj: 5
-│                │   ├─ KM/H: 45                 │
-│ ⚙️ CALIB:      │   ├─ DIST: 12.5m              │ vitesse_30
-│ ☑ Activated   │   ├─ LIMITE: 30               │ 92%
-│ Focal: 900    │   └─ [ALERTE MSG]              │
-│ Signw: 0.60   │                                │ stop
-│                │   [SPEED GRAPH]                │ 78%
-│ ▶ ANALYSER    │   [progress]                   │
-│                │                                │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🚀 Déploiement Production (Optional)
-
-```bash
-# Gunicorn + SSL
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-
-# Docker
-docker build -t adas_v6 .
-docker run -p 5000:5000 adas_v6
-
-# Nginx reverse proxy (si besoin)
-server {
-    listen 80;
-    location / {
-        proxy_pass http://localhost:5000;
-    }
-}
-```
-
----
-
-## 📖 Documentation Complète
-
-- **Dataset & Preprocessing:** [ETUDIANT_1_README.md](docs/ETUDIANT_1_README.md)
-- **Model Training:** [ETUDIANT_2_README.md](docs/ETUDIANT_2_README.md)
-- **Backend & Deploy:** [ETUDIANT_3_README.md](docs/ETUDIANT_3_README.md)
-- **Coordination Équipe:** [COORDINATION.md](COORDINATION.md)
-- **Structure Détaillée:** [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
-- **Git Workflow:** [CONTRIBUTING.md](CONTRIBUTING.md)
-- **API Routes:** [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) (soon)
-
----
-
-## 🎓 Détails Académiques
-
-**Master:** Analyse de Données & IA  
-**Équipe:** 3 Étudiants  
-**Durée:** [Indiquer durée du projet]  
-**Professeur:** [Nom Professeur]  
-
----
-
-## 📊 Métriques Dataset
+## 🛠️ Technologies
 
 ```
-LISA (Feux):           Y images → 12, 13, 14
-GTSDB (Panneaux):      Z images → 0-11
-DS1/DS2/DS3 (Mix):     W images → 15 classes
+Backend:
+  - Flask 2.3+          (API REST + SSE)
+  - Ultralytics YOLOv8  (détection)
+  - OpenCV 4.8+         (traitement vidéo/image)
+  - NumPy + Pandas      (data processing)
 
-Total:
-├─ Train:  7381 images | 20271 bboxes
-├─ Val:    1000 images | 2500 bboxes
-└─ 15 classes normalisées
+Frontend:
+  - HTML5 + CSS3        (dashboard HUD responsive)
+  - JavaScript ES6+     (client SSE + canvas)
+  - Chart.js            (graphique vitesse live)
+
+ML / Training:
+  - YOLOv8s             (modèle de détection)
+  - Kaggle GPU T4 x2    (environnement d'entraînement)
+  - PyTorch + CUDA      (deep learning)
+
+Infrastructure:
+  - Python 3.9+
+  - Git + GitHub        (versioning)
 ```
 
 ---
 
 ## ⚠️ Notes Importantes
 
-1. **best.pt obligatoire** — À placer dans `models/` pour déploiement
+1. **`best.pt` obligatoire** — À placer dans `models/` avant de lancer l'app
 2. **Vitesse calibrée** — Optionnelle, retourne `None` si non calibrée
-3. **SSE Throttling** — Limité à ~2× vitesse réelle vidéo
-4. **GPU Memory** — ~4.7GB détection + streaming
-5. **Cleanup** — Fichiers uploads > 1h supprimés automatiquement
+3. **SSE Throttling** — Limité à ~2× la vitesse réelle de la vidéo
+4. **GPU Memory** — ~4.7 GB pour détection + streaming
+5. **Cleanup automatique** — Fichiers uploads > 1h supprimés automatiquement
+6. **`.venv/` non versionné** — Chaque développeur recrée son environnement via `requirements.txt`
 
 ---
 
-## 🔗 Liens Ressources
+## 🔗 Ressources
 
-- [YOLO v8 Docs](https://docs.ultralytics.com/models/yolov8/)
+- [YOLOv8 Documentation](https://docs.ultralytics.com/models/yolov8/)
 - [Flask Documentation](https://flask.palletsprojects.com/)
 - [OpenCV Python](https://opencv-python-tutroals.readthedocs.io/)
-- [GitHub SSH Setup](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+- [Kaggle — Notebook ADAS v6](https://www.kaggle.com/)
 
 ---
 
-## 📄 License
+## 🤝 Contribution & Git
 
-MIT License — See LICENSE file
+```bash
+# Chaque étudiant travaille sur sa branche
+git checkout -b etudiant1-data       # Étudiant 1
+git checkout -b etudiant2-training   # Étudiant 2
+git checkout -b etudiant3-deploy     # Étudiant 3
+
+# Push + Pull Request vers main
+git push origin <branche>
+```
+
+**Voir [COORDINATION.md](COORDINATION.md) pour le détail complet.**
 
 ---
 
-## ✅ Status
+## 🎓 Informations Académiques
 
-- ✅ Dataset pipeline complete
-- ✅ Model training ready
-- ✅ Backend API deployed
-- ✅ Dashboard UI live
-- ✅ Tests passing
+**Formation:** Master Analyse de Données & IA  
+**Équipe:** 3 Étudiants  
+**Date:** Avril 2026  
+**Encadrant:** [Nom Professeur]
+
+---
+
+## ✅ Statut du Projet
+
+- ✅ Dataset pipeline complet (7 381 images · 15 classes)
+- ✅ Modèle entraîné (mAP50 ~ 0.867)
+- ✅ Backend API déployé (Flask + SSE)
+- ✅ Dashboard HUD opérationnel
 - 🟢 **Production Ready**
 
 ---
 
-**Dernière mise à jour:** 2026-04-30  
-**Version:** 6.0  
-**Status:** 🟢 Active & Maintainable
-
----
-
-## 📞 Questions?
-
-- 📍 GitHub Issues
-- 💬 Team Discord/Slack
-- 📧 Contact Professeur
-
-**Bonne collaboration équipe! 🚀**
+**Dernière mise à jour:** 2026-04-30 | **Version:** 6.0 | **Statut:** 🟢 Actif
